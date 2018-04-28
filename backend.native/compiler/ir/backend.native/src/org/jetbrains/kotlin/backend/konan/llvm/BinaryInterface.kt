@@ -26,7 +26,15 @@ import org.jetbrains.kotlin.descriptors.ModuleDescriptor
 import org.jetbrains.kotlin.descriptors.PropertyAccessorDescriptor
 import org.jetbrains.kotlin.descriptors.TypeParameterDescriptor
 import org.jetbrains.kotlin.descriptors.annotations.AnnotationDescriptor
+import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.declarations.*
+import org.jetbrains.kotlin.ir.expressions.IrCall
+import org.jetbrains.kotlin.ir.expressions.IrConst
+import org.jetbrains.kotlin.ir.expressions.IrConstKind
+import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
+import org.jetbrains.kotlin.ir.visitors.IrElementVisitorVoid
+import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
+import org.jetbrains.kotlin.ir.visitors.acceptVoid
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.resolve.constants.StringValue
 import org.jetbrains.kotlin.resolve.descriptorUtil.fqNameSafe
@@ -49,15 +57,15 @@ import org.jetbrains.kotlin.utils.addToStdlib.ifNotEmpty
 internal tailrec fun DeclarationDescriptor.isExported(): Boolean {
     // TODO: revise
 
-    if (this.annotations.findAnnotation(symbolNameAnnotation) != null) {
+    if (this.annotations.hasAnnotation(symbolNameAnnotation)) {
         // Treat any `@SymbolName` declaration as exported.
         return true
     }
-    if (this.annotations.findAnnotation(exportForCppRuntimeAnnotation) != null) {
+    if (this.annotations.hasAnnotation(exportForCppRuntimeAnnotation)) {
         // Treat any `@ExportForCppRuntime` declaration as exported.
         return true
     }
-    if (this.annotations.findAnnotation(cnameAnnotation) != null) {
+    if (this.annotations.hasAnnotation(cnameAnnotation)) {
         // Treat `@CName` declaration as exported.
         return true
     }
@@ -233,13 +241,26 @@ internal val IrField.symbolName: String
 
     }
 
-private fun getStringValue(annotation: AnnotationDescriptor): String? {
-    annotation.allValueArguments.values.ifNotEmpty {
-        val stringValue = this.single() as StringValue
-        return stringValue.value
-    }
+private fun getStringValue(annotation: IrCall): String? {
+    val values = mutableListOf<String>()
+    annotation.acceptVoid(object: IrElementVisitorVoid {
+        override fun visitElement(element: IrElement) {
+            element.acceptChildrenVoid(this)
+        }
 
-    return null
+        override fun <T> visitConst(expression: IrConst<T>) {
+            when(expression.kind) {
+                IrConstKind.String -> values.add(expression.value.toString())
+                else -> TODO()
+            }
+        }
+
+    })
+    return values.ifNotEmpty {  single() }
+    //annotation.allValueArguments.values.ifNotEmpty {
+    //    val stringValue = this.single() as StringValue
+    //    return stringValue.value
+    //}
 }
 
 // TODO: bring here dependencies of this method?

@@ -540,7 +540,7 @@ class KonanDescriptorSerializer private constructor(
         }
 
         if (type.isSuspendFunctionType) {
-            val functionType = type(transformSuspendFunctionToRuntimeFunctionType(type))
+            val functionType = type(transformSuspendFunctionToRuntimeFunctionType(type, extension.releaseCoroutines()))
             functionType.flags = Flags.getTypeFlags(true)
             return functionType
         }

@@ -19,10 +19,17 @@ package org.jetbrains.kotlin.backend.konan.irasdescriptors
 import org.jetbrains.kotlin.backend.konan.*
 import org.jetbrains.kotlin.backend.konan.llvm.llvmSymbolOrigin
 import org.jetbrains.kotlin.idea.MainFunctionDetector
+import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.declarations.*
-import org.jetbrains.kotlin.ir.expressions.IrCatch
-import org.jetbrains.kotlin.ir.expressions.IrTypeOperatorCall
+import org.jetbrains.kotlin.ir.expressions.*
+import org.jetbrains.kotlin.ir.visitors.IrElementVisitorVoid
+import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
+import org.jetbrains.kotlin.ir.visitors.acceptVoid
+import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.resolve.DescriptorUtils
+import org.jetbrains.kotlin.resolve.constants.*
+import org.jetbrains.kotlin.resolve.descriptorUtil.fqNameSafe
 import org.jetbrains.kotlin.resolve.descriptorUtil.module
 
 // This file contains some IR utilities which actually use descriptors.
@@ -58,3 +65,44 @@ internal fun IrTypeOperatorCall.getTypeOperandClass(context: Context): IrClass? 
 
 internal fun IrCatch.getCatchParameterTypeClass(context: Context): IrClass? =
         context.ir.getClass(this.catchParameter.type)
+
+
+
+private fun checkAnnotationFqName(fqName: FqName): (IrCall) -> Boolean =
+        { it.descriptor.fqNameSafe == FqName("${fqName.asString()}.<init>") }
+
+fun List<IrCall>.hasAnnotation(fqName: FqName) = any(checkAnnotationFqName(fqName))
+
+internal fun List<IrCall>.findAnnotation(fqName: FqName) = find(checkAnnotationFqName(fqName))
+
+internal fun IrCall.getStringValue(name: String): String = getStringValueOrNull(name)!!
+
+internal fun IrCall.getStringValueOrNull(name: String): String? = (allValueArguments[Name.identifier(name)] as? StringValue)?.value
+
+internal val IrCall.allValueArguments: Map<Name, ConstantValue<*>?>
+    get() =this.descriptor.valueParameters.map {
+            it.name to this.getValueArgument(it.index)?.toConstantValue()
+        }.toMap()
+
+private fun IrElement.toConstantValue(): ConstantValue<*> =
+    when(this) {
+        is IrConst<*> -> {
+            when (this.kind) {
+                IrConstKind.Boolean -> BooleanValue(this.value as Boolean)
+                IrConstKind.Byte -> ByteValue(this.value as Byte)
+                IrConstKind.Short -> ShortValue(this.value as Short)
+                IrConstKind.Int -> IntValue(this.value as Int)
+                IrConstKind.Long -> LongValue(this.value as Long)
+                IrConstKind.Char -> CharValue(this.value as Char)
+                IrConstKind.Float -> FloatValue(this.value as Float)
+                IrConstKind.Double -> DoubleValue(this.value as Double)
+                IrConstKind.String -> StringValue(this.value as String)
+                IrConstKind.Null -> NullValue()
+            }
+        }
+        is IrVararg -> {
+            ArrayValue(this.elements.map{ it.toConstantValue() }, { this.type })
+        }
+        else -> TODO()
+    }
+
