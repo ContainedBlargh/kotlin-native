@@ -18,13 +18,12 @@ package org.jetbrains.kotlin.backend.konan.irasdescriptors
 
 import org.jetbrains.kotlin.backend.konan.*
 import org.jetbrains.kotlin.backend.konan.llvm.llvmSymbolOrigin
+import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.idea.MainFunctionDetector
 import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.declarations.*
 import org.jetbrains.kotlin.ir.expressions.*
-import org.jetbrains.kotlin.ir.visitors.IrElementVisitorVoid
-import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
-import org.jetbrains.kotlin.ir.visitors.acceptVoid
+import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.resolve.DescriptorUtils
@@ -67,9 +66,13 @@ internal fun IrCatch.getCatchParameterTypeClass(context: Context): IrClass? =
         context.ir.getClass(this.catchParameter.type)
 
 
-
 private fun checkAnnotationFqName(fqName: FqName): (IrCall) -> Boolean =
-        { it.descriptor.fqNameSafe == FqName("${fqName.asString()}.<init>") }
+        {
+            val classConstructorDescriptor = it.symbol as? IrConstructorSymbol
+            assert(classConstructorDescriptor != null &&
+                    classConstructorDescriptor.owner.constructedClass.kind == ClassKind.ANNOTATION_CLASS)
+            classConstructorDescriptor?.descriptor?.fqNameSafe == FqName("${fqName.asString()}.<init>")
+        }
 
 fun List<IrCall>.hasAnnotation(fqName: FqName) = any(checkAnnotationFqName(fqName))
 
@@ -80,7 +83,7 @@ internal fun IrCall.getStringValue(name: String): String = getStringValueOrNull(
 internal fun IrCall.getStringValueOrNull(name: String): String? = (allValueArguments[Name.identifier(name)] as? StringValue)?.value
 
 internal val IrCall.allValueArguments: Map<Name, ConstantValue<*>?>
-    get() =this.descriptor.valueParameters.map {
+    get() = this.descriptor.valueParameters.map {
             it.name to this.getValueArgument(it.index)?.toConstantValue()
         }.toMap()
 
