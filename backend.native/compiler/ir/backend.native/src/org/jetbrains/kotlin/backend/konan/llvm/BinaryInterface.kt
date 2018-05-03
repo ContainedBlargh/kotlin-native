@@ -56,26 +56,29 @@ import org.jetbrains.kotlin.utils.addToStdlib.ifNotEmpty
  */
 internal tailrec fun DeclarationDescriptor.isExported(): Boolean {
     // TODO: revise
+    // TODO: please replace descriptorAnnotations to this.annotations, currently we can't use it because of lack cross
+    // module IrDeclaration serialiazation/deserialization.
 
-    if (this.annotations.hasAnnotation(symbolNameAnnotation)) {
+    val descriptorAnnotations = this.descriptor.annotations
+    if (descriptorAnnotations.hasAnnotation(symbolNameAnnotation)) {
         // Treat any `@SymbolName` declaration as exported.
         return true
     }
-    if (this.annotations.hasAnnotation(exportForCppRuntimeAnnotation)) {
+    if (descriptorAnnotations.hasAnnotation(exportForCppRuntimeAnnotation)) {
         // Treat any `@ExportForCppRuntime` declaration as exported.
         return true
     }
-    if (this.annotations.hasAnnotation(cnameAnnotation)) {
+    if (descriptorAnnotations.hasAnnotation(cnameAnnotation)) {
         // Treat `@CName` declaration as exported.
         return true
     }
-    if (this.annotations.hasAnnotation(exportForCompilerAnnotation)) {
+    if (descriptorAnnotations.hasAnnotation(exportForCompilerAnnotation)) {
         return true
     }
-    if (this.annotations.hasAnnotation(publishedApiAnnotation)){
+    if (descriptorAnnotations.hasAnnotation(publishedApiAnnotation)){
         return true
     }
-    if (this.annotations.hasAnnotation(inlineExposedAnnotation)){
+    if (descriptorAnnotations.hasAnnotation(inlineExposedAnnotation)){
         return true
     }
 
